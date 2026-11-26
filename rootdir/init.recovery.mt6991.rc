@@ -1,0 +1,4 @@
+# SPDX-License-Identifier: GPL-3.0-or-later
+# Keep the platform entry point stable; klimt-specific behavior lives in the imported file.
+
+import /init.recovery.project.rc

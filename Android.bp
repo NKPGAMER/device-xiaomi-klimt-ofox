@@ -1,0 +1,7 @@
+package {
+    default_applicable_licenses: ["Android-Apache-2.0"],
+}
+
+// OrangeFox 14.1 (Android 14) builds KeyMint V3 and Gatekeeper V1 natively.
+// The AOSP 16->A15 AIDL compatibility bridge in prebuilt/a15-aidl is not
+// required on fox_14.1.

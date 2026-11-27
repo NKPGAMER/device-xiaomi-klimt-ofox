@@ -1,0 +1,104 @@
+diff --git a/gui/action.cpp b/gui/action.cpp
+index e4a16a110fb3a447748d0499863b0efcab4190b5..a4ebd066f810173f2fda340518e0607a3de17e5f 100755
+--- a/gui/action.cpp
++++ b/gui/action.cpp
+@@ -1127,6 +1127,7 @@ int GUIAction::setguitimezone(std::string arg __unused)
+ 
+   DataManager::SetValue(TW_TIME_ZONE_VAR, NewTimeZone);
+   DataManager::update_tz_environment_variables();
++  DataManager::Flush();
+   return 0;
+ }
+ 
+diff --git a/gui/pages.cpp b/gui/pages.cpp
+index b18257575106d5fd5bdb3582059949bc90d4cb2b..bbfd748eb8b46cbf2bb73d0251d033a926c18cf2 100755
+--- a/gui/pages.cpp
++++ b/gui/pages.cpp
+@@ -1639,6 +1639,14 @@ void PageManager::SetStartPage(const std::string& page_name) {
+ 
+ int PageManager::ChangePage(std::string name)
+ {
++	std::string current = GetCurrentPage();
++	if (!current.empty() && current != name &&
++	    (current == "settings" || current == "advanced" ||
++	     current == "fox_lab" || current.rfind("ext_", 0) == 0) &&
++	    (DataManager::GetIntValue(TW_IS_ENCRYPTED) == 0 ||
++	     DataManager::GetIntValue(TW_IS_DECRYPTED) == 1)) {
++		DataManager::Flush();
++	}
+ 	DataManager::SetValue("tw_operation_state", 0);
+ 	int ret = (mCurrentSet ? mCurrentSet->SetPage(name) : -1);
+ 	return ret;
+diff --git a/partition.cpp b/partition.cpp
+index 9d8996783f772c5bdf5d98fc854c823ba9040b48..7f787b6c1f4595e24bff69d379ed62546feb4c71 100644
+--- a/partition.cpp
++++ b/partition.cpp
+@@ -604,6 +604,11 @@ bool TWPartition::Process_Fstab_Line(const char *fstab_line, bool Display_Error,
+ 			Backup_Display_Name = Display_Name;
+ 			Can_Be_Backed_Up = true;
+ 			Can_Flash_Img = true;
++		} else if (Mount_Point == "/vendor_boot") {
++			Display_Name = "Vendor Boot";
++			Backup_Display_Name = Display_Name;
++			Can_Be_Backed_Up = true;
++			Can_Flash_Img = true;
+ 		} else if (Mount_Point == "/recovery") {
+ 			Display_Name = "Recovery";
+ 			Backup_Display_Name = Display_Name;
+diff --git a/twrpRepacker.cpp b/twrpRepacker.cpp
+index 9117365f1f33589671c0fa6b34540acdb9280397..d74961a9f6fb1170a27f0538c472ca9d794c885e 100755
+--- a/twrpRepacker.cpp
++++ b/twrpRepacker.cpp
+@@ -1345,6 +1345,19 @@ bool twrpRepacker::Repack_Image_And_Flash(const std::string& Target_Image, const
+ 	if (!Backup_Image_For_Repack(part, REPACK_ORIG_DIR, Repack_Options.Backup_First, gui_lookup("repack", "Repack")))
+ 		return false;
+ 
++	if (is_vendor_boot_v4) {
++		const std::string orig_dir(REPACK_ORIG_DIR);
++		if (TWFunc::Path_Exists(orig_dir + "vendor_ramdisk/recovery.cpio"))
++			ramdisk_cpio = "vendor_ramdisk/recovery.cpio";
++		else if (TWFunc::Path_Exists(orig_dir + "vendor_ramdisk_recovery.cpio"))
++			ramdisk_cpio = "vendor_ramdisk_recovery.cpio";
++		else {
++			LOGERR("Unable to locate v4 vendor_boot recovery ramdisk fragment in %s\n", REPACK_ORIG_DIR);
++			return false;
++		}
++		LOGINFO("Using v4 vendor_boot recovery ramdisk fragment: %s\n", ramdisk_cpio.c_str());
++	}
++
+ #ifdef RODIN_RUNTIME_DTB_FIX
+ 	if (Patch_Rodin_Usb_Dtb) {
+ 		LOGINFO("Applying rodin target-slot OTG DTB patch before vendor_boot repack.\n");
+@@ -2914,6 +2927,7 @@ bool twrpRepacker::Flash_Current_Twrp() {
+ 	LOGINFO("Repacking the newly flashed vendor_boot on slot %s without overwriting the platform ramdisk.\n",
+ 		target_slot.c_str());
+ 
++	std::string orig_slot = PartitionManager.Get_Active_Slot_Display();
+ 	PartitionManager.Override_Active_Slot(target_slot);
+ 	PartitionManager.Update_System_Details();
+ 
+@@ -2921,17 +2935,22 @@ bool twrpRepacker::Flash_Current_Twrp() {
+ 	// image to the source slot because each ROM may use different platform
+ 	// ramdisk fragments, DTB data and boot configuration.
+ #ifdef RODIN_RUNTIME_DTB_FIX
+-	return Repack_Image_And_Flash(
++	bool ret = Repack_Image_And_Flash(
+ 		"/tmp/currentramdisk.cpio.gz",
+ 		Repack_Options,
+ 		false,
+ 		true);
+ #else
+-	return Repack_Image_And_Flash(
++	bool ret = Repack_Image_And_Flash(
+ 		"/tmp/currentramdisk.cpio.gz",
+ 		Repack_Options,
+ 		false);
+ #endif
++	if (!orig_slot.empty() && orig_slot != target_slot) {
++		PartitionManager.Override_Active_Slot(orig_slot);
++		PartitionManager.Update_System_Details();
++	}
++	return ret;
+ #else
+ 	return Repack_Image_And_Flash(
+ 		"/tmp/currentramdisk.cpio.gz",

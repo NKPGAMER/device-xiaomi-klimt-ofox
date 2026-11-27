@@ -1,5 +1,7 @@
-# ---- Stock firmware inputs (never commit: Xiaomi copyrighted binaries) ----
-repack/inputs/
+# ---- Stock firmware inputs ----
+local-inputs/
+tools/.work/
+tools/output/
 
 # ---- Repack pipeline artifacts ----
 *.cpio

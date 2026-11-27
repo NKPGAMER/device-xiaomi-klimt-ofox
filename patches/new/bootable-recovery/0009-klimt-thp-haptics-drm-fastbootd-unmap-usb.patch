@@ -1,0 +1,416 @@
+diff --git a/Android.mk b/Android.mk
+index 0099efd..ca268f8 100755
+--- a/Android.mk
++++ b/Android.mk
+@@ -209,6 +209,14 @@ ifeq ($(TW_NO_BIND_SYSTEM),true)
+     LOCAL_CFLAGS += -DTW_NO_BIND_SYSTEM
+ endif
+ 
++ifeq ($(TW_KEEP_VENDOR_MOUNTED),true)
++    LOCAL_CFLAGS += -DTW_KEEP_VENDOR_MOUNTED
++endif
++
++ifeq ($(TW_KEEP_ODM_MOUNTED),true)
++    LOCAL_CFLAGS += -DTW_KEEP_ODM_MOUNTED
++endif
++
+ ifeq ($(TW_NO_FLASH_CURRENT_TWRP),true)
+     LOCAL_CFLAGS += -DTW_NO_FLASH_CURRENT_TWRP
+ endif
+diff --git a/gui/action.cpp b/gui/action.cpp
+index 4864869..e4a16a1 100755
+--- a/gui/action.cpp
++++ b/gui/action.cpp
+@@ -2978,12 +2978,14 @@ int GUIAction::batch(std::string arg __unused)
+ 
+ int GUIAction::enableadb(std::string arg __unused) {
+ 	android::base::SetProperty("sys.usb.config", "none");
++	android::base::WaitForProperty("sys.usb.state", "none", std::chrono::seconds(2));
+ 	android::base::SetProperty("sys.usb.config", "adb");
+ 	return 0;
+ }
+ 
+ int GUIAction::enablefastboot(std::string arg __unused) {
+ 	android::base::SetProperty("sys.usb.config", "none");
++	android::base::WaitForProperty("sys.usb.state", "none", std::chrono::seconds(2));
+ 	android::base::SetProperty("sys.usb.config", "fastboot");
+ 	return 0;
+ }
+diff --git a/gui/scrolllist.cpp b/gui/scrolllist.cpp
+index 2b06941..f151fa3 100755
+--- a/gui/scrolllist.cpp
++++ b/gui/scrolllist.cpp
+@@ -147,7 +147,7 @@ GUIScrollList::GUIScrollList(xml_node<>* node) : GUIObject(node)
+ 	}
+ 
+ 	// Retrieve the line height
+-	mFontHeight = mFont->GetHeight();
++	mFontHeight = mFont ? mFont->GetHeight() : 0;
+ 	actualItemHeight = mFontHeight + mItemSpacing + mSeparatorH;
+ 
+ 	// Load the header if it exists
+diff --git a/gui/theme/portrait_hdpi/pages/settings.xml b/gui/theme/portrait_hdpi/pages/settings.xml
+index b797164..b75dc71 100644
+--- a/gui/theme/portrait_hdpi/pages/settings.xml
++++ b/gui/theme/portrait_hdpi/pages/settings.xml
+@@ -592,7 +592,7 @@
+ 
+ 			<slidervalue>
+ 				<placement x="%slider_x%" y="%row1_3_y%" w="%slidervalue_w%"/>
+-				<data variable="tw_button_vibrate" min="0" max="300" showrange="0" showcurr="0" changeondrag="1"/>
++				<data variable="tw_button_vibrate" min="0" max="100" showrange="0" showcurr="0" changeondrag="1"/>
+ 			</slidervalue>
+ 
+ 			<text style="text_body1">
+@@ -609,7 +609,7 @@
+ 
+ 			<slidervalue>
+ 				<placement x="%slider_x%" y="%row3_1a_y%" w="%slidervalue_w%"/>
+-				<data variable="tw_keyboard_vibrate" min="0" max="300" showrange="0" showcurr="0" changeondrag="1"/>
++				<data variable="tw_keyboard_vibrate" min="0" max="100" showrange="0" showcurr="0" changeondrag="1"/>
+ 			</slidervalue>
+ 
+ 			<text style="text_body1">
+@@ -626,7 +626,7 @@
+ 
+ 			<slidervalue>
+ 				<placement x="%slider_x%" y="%row4_3_y%" w="%slidervalue_w%"/>
+-				<data variable="tw_action_vibrate" min="0" max="500" showrange="0" showcurr="0" changeondrag="1"/>
++				<data variable="tw_action_vibrate" min="0" max="100" showrange="0" showcurr="0" changeondrag="1"/>
+ 			</slidervalue>
+ 
+ 			<template name="gestures"/>
+diff --git a/minuitwrp/events.cpp b/minuitwrp/events.cpp
+index 1760c15..18ca575 100644
+--- a/minuitwrp/events.cpp
++++ b/minuitwrp/events.cpp
+@@ -64,11 +64,23 @@ static std::atomic_int vib_on_count = 0;
+ #define LEDS_HAPTICS_DURATION_FILE	"/sys/class/leds/vibrator/duration"
+ #define LEDS_HAPTICS_ACTIVATE_FILE	"/sys/class/leds/vibrator/activate"
+ 
+-// rodin's SIH6887 driver exposes haptics directly on its I2C device.
+-#define SIH_HAPTICS_DURATION_FILE \
+-    "/sys/bus/i2c/drivers/sih_haptic_688X/0-006b/duration"
+-#define SIH_HAPTICS_ACTIVATE_FILE \
+-    "/sys/bus/i2c/drivers/sih_haptic_688X/0-006b/activate"
++// SIH688X driver exposes haptics directly on its I2C device (0-006b on rodin, 1-006b on klimt).
++static const std::string& get_sih_haptics_dir() {
++    static std::string cached_dir;
++    if (!cached_dir.empty()) return cached_dir;
++    static const char* const kCandidates[] = {
++        "/sys/bus/i2c/drivers/sih_haptic_688X/1-006b",
++        "/sys/bus/i2c/drivers/sih_haptic_688X/0-006b",
++    };
++    for (const char* dir : kCandidates) {
++        if (std::ifstream(std::string(dir) + "/activate").good()) {
++            cached_dir = dir;
++            return cached_dir;
++        }
++    }
++    cached_dir = kCandidates[0];
++    return cached_dir;
++}
+ 
+ #ifndef SYN_REPORT
+ #define SYN_REPORT          0x00
+@@ -191,9 +203,30 @@ int vibrate(int timeout_ms)
+     if (std::ifstream(LEDS_HAPTICS_ACTIVATE_FILE).good()) {
+         write_to_file(LEDS_HAPTICS_DURATION_FILE, tout);
+         write_to_file(LEDS_HAPTICS_ACTIVATE_FILE, "1");
+-    } else if (std::ifstream(SIH_HAPTICS_ACTIVATE_FILE).good()) {
+-        write_to_file(SIH_HAPTICS_DURATION_FILE, tout);
+-        write_to_file(SIH_HAPTICS_ACTIVATE_FILE, "1");
++    } else if (std::ifstream(get_sih_haptics_dir() + "/activate").good()) {
++        const std::string& sih_dir = get_sih_haptics_dir();
++        int strength = timeout_ms;
++        if (strength < 1) strength = 1;
++        if (strength > 100) strength = 100;
++
++        // SIH688X recovery strength range.
++        // 0x1e is the driver baseline; 0x80 is the highest
++        // gain verified successfully during real-device testing.
++        const int min_gain = 0x1e;
++        const int max_gain = 0x80;
++        const int gain =
++            min_gain + ((max_gain - min_gain) * strength + 50) / 100;
++
++        // Effect 7 is calibrated short granular haptic.
++        write_to_file(sih_dir + "/activate", "0");
++        write_to_file(sih_dir + "/effect_id", "7");
++        write_to_file(sih_dir + "/activate", "1");
++
++        // activate_store asynchronously restores the driver default gain.
++        // Real-device testing shows a 1 ms settle is sufficient before
++        // applying the requested strength.
++        usleep(1000);
++        write_to_file(sih_dir + "/gain", std::to_string(gain));
+     } else {
+         write_to_file(VIBRATOR_TIMEOUT_FILE, tout);
+     }
+diff --git a/minuitwrp/graphics_drm.cpp b/minuitwrp/graphics_drm.cpp
+index 0cc80f5..8d24bb5 100644
+--- a/minuitwrp/graphics_drm.cpp
++++ b/minuitwrp/graphics_drm.cpp
+@@ -695,7 +695,7 @@ static drm_surface *drm_create_surface(int width, int height) {
+     printf("setting DRM_FORMAT_XBGR8888 and GGL_PIXEL_FORMAT_RGBA_8888\n");
+ #else
+     format = DRM_FORMAT_RGB565;
+-    base_format = GGL_PIXEL_FORMAT_BGRA_8888;
++    base_format = GGL_PIXEL_FORMAT_RGB_565;
+     printf("setting DRM_FORMAT_RGB565 and GGL_PIXEL_FORMAT_RGB_565\n");
+ #endif
+ 
+diff --git a/partitionmanager.cpp b/partitionmanager.cpp
+index 95b66cb..89657a7 100755
+--- a/partitionmanager.cpp
++++ b/partitionmanager.cpp
+@@ -255,7 +255,9 @@ void inline Process_Keymaster_Version(TWPartition *ven, bool Display_Error) {
+ 		*/
+ 	if (version.empty()) {
+ 		// unmount partition(s)
++#ifndef TW_KEEP_VENDOR_MOUNTED
+ 		if (ven) ven->UnMount(Display_Error);
++#endif
+ 
+ 		// Use keymaster_ver prop set from device tree (if exists)
+ 		version = android::base::GetProperty(TW_KEYMASTER_VERSION_PROP, version);
+@@ -266,10 +268,14 @@ void inline Process_Keymaster_Version(TWPartition *ven, bool Display_Error) {
+ 			LOGINFO("Keymaster_Ver::Unable to find vendor manifest on the device. Setting to default value.\n");
+ 		}
+ 	} else {
++#ifndef TW_KEEP_VENDOR_MOUNTED
+ 		if (ven) ven->UnMount(Display_Error);
++#endif
+ 	}
+ #else
++#ifndef TW_KEEP_VENDOR_MOUNTED
+ 	if (ven) ven->UnMount(Display_Error);
++#endif
+ 
+ 	version = android::base::GetProperty(TW_KEYMASTER_VERSION_PROP, version);
+ 	if (version.empty()) {
+@@ -529,10 +535,14 @@ clear:
+ #endif
+ 
+ 	usleep(65536);
++#ifndef TW_KEEP_ODM_MOUNTED
+ 	if (odm) odm->UnMount(Display_Error);
++#endif
+ 	if (recovery_mode)
+ 		Process_Keymaster_Version(ven, false);
++#ifndef TW_KEEP_VENDOR_MOUNTED
+ 	if (ven) ven->UnMount(Display_Error);
++#endif
+ 	return true;
+ }
+ 
+@@ -587,8 +597,10 @@ void TWPartitionManager::Setup_Fstab_Partitions(bool Display_Error) {
+ 			}
+ 		}
+ 	#ifndef USE_VENDOR_LIBS
++#ifndef TW_KEEP_VENDOR_MOUNTED
+ 		if (ven)
+ 			ven->UnMount(Display_Error);
++#endif
+ 		if (sys)
+ 			sys->UnMount(Display_Error);
+ 	#endif
+@@ -4839,6 +4851,95 @@ void TWPartitionManager::Unlock_Block_Partitions() {
+ 	}
+ }
+ 
++static void Release_Super_Mount_Holders() {
++	property_set("twrp.crypto.runtime.released", "1");
++
++	static const char* const kHolders[] = {
++		"thp-touch",
++		"keystore2",
++		"vendor.weaver_nxp",
++		"vendor.gatekeeper_mitee",
++		"vendor.keymint-mitee",
++		"se_omapi",
++		"vendor.secure_element_hal_service",
++		"vendor.mitee.mtdservice",
++	};
++
++	for (const char* svc : kHolders) {
++		const std::string key = std::string("init.svc.") + svc;
++		if (android::base::GetProperty(key, "") == "running") {
++			android::base::SetProperty("ctl.stop", svc);
++		}
++	}
++
++	for (int i = 0; i < 30; ++i) {
++		bool any_running = false;
++		for (const char* svc : kHolders) {
++			const std::string key = std::string("init.svc.") + svc;
++			if (android::base::GetProperty(key, "") == "running") {
++				any_running = true;
++				break;
++			}
++		}
++		if (!any_running) {
++			break;
++		}
++		usleep(100000);
++	}
++
++	static const char* const kHelperMounts[] = {
++		"/mnt_sys",
++		"/mnt_vendor",
++		"/mnt/vendor/mi_ext",
++		"/mi_ext",
++		"/odm",
++		"/vendor",
++		"/system_ext",
++		"/product",
++		"/vendor_dlkm",
++		"/odm_dlkm",
++		"/system_dlkm",
++		"/system",
++		"/system_root",
++	};
++
++	for (const char* path : kHelperMounts) {
++		if (umount(path) != 0 && errno == EBUSY) {
++			usleep(100000);
++			if (umount(path) != 0) {
++				LOGINFO("umount(%s) deferred/failed: %s\n", path, strerror(errno));
++			}
++		}
++	}
++}
++
++static bool Destroy_Logical_With_Retry(const std::string& name) {
++	for (int attempt = 0; attempt < 5; ++attempt) {
++		if (DestroyLogicalPartition(name)) {
++			return true;
++		}
++		usleep(100000);
++	}
++	return false;
++}
++
++static void Remove_Logical_ByName_Symlink(const std::string& bare_name) {
++	const std::string dirs[] = {
++		"/dev/block/by-name/" + bare_name,
++		"/dev/block/bootdevice/by-name/" + bare_name,
++	};
++	for (const std::string& link : dirs) {
++		char target[PATH_MAX];
++		ssize_t len = readlink(link.c_str(), target, sizeof(target) - 1);
++		if (len > 0) {
++			target[len] = '\0';
++			if (strncmp(target, "/dev/block/dm-", 14) == 0) {
++				unlink(link.c_str());
++			}
++		}
++	}
++}
++
+ bool TWPartitionManager::Unmap_Super_Devices() {
+ #ifndef TW_EXCLUDE_APEX
+ 	twrpApex apex;
+@@ -4846,6 +4947,7 @@ bool TWPartitionManager::Unmap_Super_Devices() {
+ #endif
+ 
+ 	LOGINFO("Unmap_Super_Devices\n");
++	Release_Super_Mount_Holders();
+ 
+ 	// The slot selected for the next boot can change after update_engine runs.
+ 	// TWRP's existing super mappings, however, belong to the slot from which
+@@ -4859,6 +4961,7 @@ bool TWPartitionManager::Unmap_Super_Devices() {
+ 			booted_suffix = "_" + booted_suffix;
+ 	}
+ 
++	bool all_ok = true;
+ 	for (auto iter = Partitions.begin(); iter != Partitions.end();) {
+ 		TWPartition* part = *iter;
+ 
+@@ -4898,11 +5001,14 @@ bool TWPartitionManager::Unmap_Super_Devices() {
+ 			LOGINFO("removing dynamic partition: %s\n",
+ 				mapped_partition.c_str());
+ 
+-			if (!DestroyLogicalPartition(mapped_partition)) {
++			if (!Destroy_Logical_With_Retry(mapped_partition)) {
+ 				LOGERR("Unable to remove dynamic partition: %s\n",
+ 					mapped_partition.c_str());
+-				return false;
++				all_ok = false;
++				++iter;
++				continue;
+ 			}
++			Remove_Logical_ByName_Symlink(bare_partition_name);
+ 
+ 			const std::string cow_partition =
+ 				mapped_partition + "-cow";
+@@ -4914,15 +5020,18 @@ bool TWPartitionManager::Unmap_Super_Devices() {
+ 				LOGINFO("removing cow partition: %s\n",
+ 					cow_partition.c_str());
+ 
+-				if (!DestroyLogicalPartition(cow_partition)) {
++				if (!Destroy_Logical_With_Retry(cow_partition)) {
+ 					LOGERR("Unable to remove cow partition: %s\n",
+ 						cow_partition.c_str());
+-					return false;
++					all_ok = false;
++					++iter;
++					continue;
+ 				}
+ 			}
+ 		} else {
+ 			LOGINFO("dynamic partition already unmapped: %s\n",
+ 				bare_partition_name.c_str());
++			Remove_Logical_ByName_Symlink(bare_partition_name);
+ 		}
+ 
+ 		iter = Partitions.erase(iter);
+@@ -4933,7 +5042,7 @@ bool TWPartitionManager::Unmap_Super_Devices() {
+ 	// payload installation that directory also contains target-slot snapshot,
+ 	// base and COW devices. SnapshotManager::HandleImminentDataWipe() owns
+ 	// those devices and safely cancels them immediately after this function.
+-	return true;
++	return all_ok;
+ }
+ 
+ bool TWPartitionManager::Check_Pending_Merges() {
+diff --git a/startupArgs.cpp b/startupArgs.cpp
+index 058bc40..f141558 100755
+--- a/startupArgs.cpp
++++ b/startupArgs.cpp
+@@ -21,6 +21,8 @@
+ 
+ #include "startupArgs.hpp"
+ 
++#include <chrono>
++
+ void startupArgs::parse(int *argc, char ***argv) {
+ 	std::vector<std::string> args = args::get_args(argc, argv);
+ 	int index;
+@@ -48,9 +50,7 @@ bool startupArgs::processRecoveryArgs(std::vector<std::string> args, int index)
+ 		if (args[index] == FASTBOOT) {
+ 			fastboot_mode = true;
+ 			android::base::SetProperty("sys.usb.config", "none");
+-			android::base::SetProperty("sys.usb.configfs", "0");
+-			sleep(1);
+-			android::base::SetProperty("sys.usb.configfs", "1");
++			android::base::WaitForProperty("sys.usb.state", "none", std::chrono::seconds(2));
+ 			android::base::SetProperty("sys.usb.config", "fastboot");
+ 			DataManager::SetValue("tw_enable_adb", 0);
+ 			DataManager::SetValue("tw_enable_fastboot", 1);
+diff --git a/twrp.cpp b/twrp.cpp
+index 9a4ee13..f884acb 100644
+--- a/twrp.cpp
++++ b/twrp.cpp
+@@ -126,6 +126,11 @@ static void process_fastbootd_mode() {
+ 		gui_msg(Msg("fastboot_console_msg=Entered Fastboot mode..."));
+ 		property_set("sys.orangefox.fastbootd", "1");
+ 		property_set("ro.boot.verifiedbootstate", "orange");
++		if (android::base::GetProperty("sys.usb.state", "") != "fastboot") {
++			android::base::SetProperty("sys.usb.config", "none");
++			android::base::WaitForProperty("sys.usb.state", "none", std::chrono::seconds(2));
++			android::base::SetProperty("sys.usb.config", "fastboot");
++		}
+ 		TWFunc::RunFoxScript("/system/bin/runatboot.sh", "");
+ 		TWFunc::RunFoxScript("/system/bin/postfastboot.sh", "");
+ 		if (gui_startPage("fastboot", 1, 1) != 0) {

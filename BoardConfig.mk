@@ -34,11 +34,11 @@ BOARD_DTB_OFFSET := 0x87c80000
 BOARD_KERNEL_CMDLINE := bootopt=64S3,32N2,64N2
 BOARD_RAMDISK_USE_LZ4 := true
 BOARD_INCLUDE_DTB_IN_BOOTIMG := true
-KLIMT_STOCK_DTB := $(DEVICE_PATH)/local-inputs/klimt.dtb
+KLIMT_STOCK_DTB := $(DEVICE_PATH)/prebuilt/klimt.dtb
 ifeq ($(wildcard $(KLIMT_STOCK_DTB)),)
-$(error Missing local stock DTB at $(KLIMT_STOCK_DTB); unpack stock vendor_boot.img into $(DEVICE_PATH)/local-inputs first)
+$(error Missing stock DTB at $(KLIMT_STOCK_DTB))
 endif
-BOARD_PREBUILT_DTBIMAGE_DIR := $(DEVICE_PATH)/local-inputs
+BOARD_PREBUILT_DTBIMAGE_DIR := $(DEVICE_PATH)/prebuilt
 
 BOARD_MKBOOTIMG_ARGS += --header_version 4
 BOARD_MKBOOTIMG_ARGS += --kernel_offset 0x80000000

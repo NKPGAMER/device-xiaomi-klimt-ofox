@@ -1,0 +1,11 @@
+diff --git a/minuitwrp/resources.cpp b/minuitwrp/resources.cpp
+index 2db6536d138f8fcc7561be6f6fad44efc778420e..32c10894c9b29eb218c09165f3798f3ae8fe67ed 100644
+--- a/minuitwrp/resources.cpp
++++ b/minuitwrp/resources.cpp
+@@ -463,5 +463,5 @@ int res_get_pixel_format(void) {
+ #elif defined(RECOVERY_RGBX)
+     return GGL_PIXEL_FORMAT_RGBA_8888;
+ #endif
+-    return GGL_PIXEL_FORMAT_BGRA_8888;
++    return GGL_PIXEL_FORMAT_RGBA_8888;
+ }

@@ -1,0 +1,14 @@
+diff --git a/transport/ServiceManagement.cpp b/transport/ServiceManagement.cpp
+index fdd61f6..d06875a 100644
+--- a/transport/ServiceManagement.cpp
++++ b/transport/ServiceManagement.cpp
+@@ -743,6 +743,9 @@ sp<IServiceManager1_1> getPassthroughServiceManager1_1() {
+ std::vector<std::string> getAllHalInstanceNames(const std::string& descriptor) {
+     std::vector<std::string> ret;
+     auto sm = defaultServiceManager1_2();
++    if (!sm) {
++        return ret;
++    }
+     sm->listManifestByInterface(descriptor, [&](const auto& instances) {
+         ret.reserve(instances.size());
+         for (const auto& i : instances) {

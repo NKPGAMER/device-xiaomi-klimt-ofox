@@ -24,10 +24,8 @@ ALLOW_MISSING_DEPENDENCIES := true
 # Kernel & Vendor Boot (v4)
 BOARD_USES_GENERIC_KERNEL_IMAGE  := true
 BOARD_BOOT_HEADER_VERSION        := 4
-BOARD_VENDOR_BOOT_HEADER_VERSION := 4
 BOARD_KERNEL_BASE                := 0x00000000
 BOARD_KERNEL_PAGESIZE            := 4096
-BOARD_PAGE_SIZE                  := 4096
 BOARD_KERNEL_OFFSET              := 0x80000000
 BOARD_RAMDISK_OFFSET             := 0xa6f00000
 BOARD_KERNEL_TAGS_OFFSET         := 0x87c80000
@@ -79,10 +77,7 @@ AB_OTA_PARTITIONS += \
     mi_ext
 
 # No standalone recovery, recovery-as-boot, or unproven super size is defined.
-BOARD_FLASH_BLOCK_SIZE      := 262144
-BOARD_HAS_LARGE_FILESYSTEM  := true
-BOARD_HAS_NO_SELECT_BUTTON  := true
-BOARD_SUPPRESS_SECURE_ERASE := true
+BOARD_FLASH_BLOCK_SIZE := 262144
 
 # TWRP Display, Input & Hardware
 # ADB, fastbootd, and the read-only FBE path are always part of release builds.
@@ -96,18 +91,13 @@ TW_USE_LEGACY_BATTERY_SERVICES := true
 TW_DEFAULT_LANGUAGE            := en
 TW_INPUT_BLACKLIST             := "hbtp_vm"
 # Klimt recovery carries si_haptic module for haptic feedback.
-TW_USE_NEW_MINADBD             := true
 # RGB565 is the format proven by the v7-v9 runtime tests. Touch and the stock
 # host bridge remain a separately audited recovery overlay.
 
 # TWRP Storage, USB & Debugging
-TW_HAS_MTP           := true
 TW_MTP_DEVICE        := /dev/mtp_usb
-TW_NO_USB_STORAGE    := true
 TARGET_USES_LOGD     := true
 TWRP_INCLUDE_LOGCAT  := true
-TW_INCLUDE_RESETPROP := true
-TW_INCLUDE_EROFS     := true
 TW_INCLUDE_FASTBOOTD := true
 
 # Treat the primary data/media tree as the storage mount itself. The explicit
@@ -117,30 +107,14 @@ RECOVERY_SDCARD_ON_DATA         := true
 TW_INTERNAL_STORAGE_MOUNT_POINT := "/data/media/0"
 
 # Crypto, FBE & Security Patch
-TW_INCLUDE_CRYPTO               := true
-TW_INCLUDE_CRYPTO_FBE           := true
-TW_INCLUDE_FBE                  := true
-BOARD_USES_METADATA_PARTITION   := true
-TW_INCLUDE_FBE_METADATA_DECRYPT := true
-TW_USE_FSCRYPT_POLICY           := 2
-
-PLATFORM_VERSION             := 99.87.36
-PLATFORM_VERSION_LAST_STABLE := $(PLATFORM_VERSION)
-PLATFORM_SECURITY_PATCH      := 2099-12-31
-BOOT_SECURITY_PATCH          := $(PLATFORM_SECURITY_PATCH)
-VENDOR_SECURITY_PATCH        := $(PLATFORM_SECURITY_PATCH)
+TW_INCLUDE_CRYPTO             := true
+BOARD_USES_METADATA_PARTITION := true
 
 # The stock A15 TEE/KeyMint/Gatekeeper executables run directly from vendor.
 # Keep its read-only mount alive after parsing the additional vendor fstab.
 TW_KEEP_VENDOR_MOUNTED := true
 # The stock Weaver binary links its Xiaomi AuthSecret AIDL interface from ODM.
 TW_KEEP_ODM_MOUNTED := true
-TW_DASH_RELEASE_CRYPTO_MOUNTS_AFTER_DECRYPT := true
-# TWRP maps metadata-encrypted userdata before user authentication. Tear that
-# mapping down through TWRP's native dmctl path before formatting the raw block.
-TW_USE_DMCTL := true
-# Keep user-0 credential entry explicit; hardware throttling governs retries.
-TW_SKIP_FBE_DEFAULT_PASSWORD := true
 
 # TWRP Feature Flags & Exclusions
 TW_INCLUDE_OMAPI   := true
@@ -150,11 +124,8 @@ TW_EXCLUDE_NANO    := true
 TW_EXCLUDE_LPDUMP  := true
 TW_NO_EXFAT        := true
 TW_NO_EXFAT_FUSE   := true
-TW_NO_NETWORK      := true
 TW_NO_LEGACY_PROPS := true
 TW_NO_BIND_SYSTEM  := true
-# Keep legacy Advanced actions reversible while hiding them from the klimt UI.
-TW_SHOW_LEGACY_ADVANCED := false
 
 # OrangeFox Configuration
 -include $(DEVICE_PATH)/fox_klimt.mk

@@ -50,6 +50,7 @@
 - ✅ Sideload
 - ✅ USB OTG
 - ✅ Vibrator
+- ✅ Flash/Reflash Current OrangeFox
 
 ## ⚡ Tested
 **HyperOS 3.0.335**

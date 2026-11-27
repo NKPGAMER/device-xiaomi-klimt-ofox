@@ -1,59 +1,63 @@
 DEVICE_PATH := device/xiaomi/klimt
 
-# Architecture: MT6991 (Dimensity 9400+) — arm64 only, same as dash.
-TARGET_ARCH := arm64
-TARGET_ARCH_VARIANT := armv8-a
-TARGET_CPU_ABI := arm64-v8a
-TARGET_CPU_VARIANT := generic
-TARGET_CPU_VARIANT_RUNTIME := generic
+# Architecture: MT6991 (Dimensity 9400+) — arm64 only
+TARGET_ARCH                 := arm64
+TARGET_ARCH_VARIANT         := armv8-a
+TARGET_CPU_ABI              := arm64-v8a
+TARGET_CPU_VARIANT          := generic
+TARGET_CPU_VARIANT_RUNTIME  := generic
 TARGET_SUPPORTS_32_BIT_APPS := false
 TARGET_SUPPORTS_64_BIT_APPS := true
 
+# Platform
 TARGET_BOOTLOADER_BOARD_NAME := mt6991
-TARGET_BOARD_PLATFORM := mt6991
-TARGET_NO_BOOTLOADER := true
-TARGET_NO_KERNEL := true
-TARGET_COPY_OUT_VENDOR := vendor
+TARGET_BOARD_PLATFORM        := mt6991
+TARGET_NO_BOOTLOADER         := true
+TARGET_NO_KERNEL             := true
+TARGET_COPY_OUT_VENDOR       := vendor
 
 # The pinned recovery manifest intentionally omits test and host-tool dependency
 # closures. Soong still parses their remaining Android.bp files; selected
 # recovery modules must satisfy their dependencies when Ninja executes.
 ALLOW_MISSING_DEPENDENCIES := true
 
-# Stock klimt vendor_boot v4 facts. The build output is content-only middleware.
-BOARD_USES_GENERIC_KERNEL_IMAGE := true
-BOARD_BOOT_HEADER_VERSION := 4
+# Kernel & Vendor Boot (v4)
+BOARD_USES_GENERIC_KERNEL_IMAGE  := true
+BOARD_BOOT_HEADER_VERSION        := 4
 BOARD_VENDOR_BOOT_HEADER_VERSION := 4
-BOARD_KERNEL_BASE := 0x00000000
-BOARD_KERNEL_PAGESIZE := 4096
-BOARD_PAGE_SIZE := 4096
-BOARD_KERNEL_OFFSET := 0x80000000
-BOARD_RAMDISK_OFFSET := 0xa6f00000
-BOARD_KERNEL_TAGS_OFFSET := 0x87c80000
-BOARD_DTB_OFFSET := 0x87c80000
-BOARD_KERNEL_CMDLINE := bootopt=64S3,32N2,64N2
-BOARD_RAMDISK_USE_LZ4 := true
-BOARD_INCLUDE_DTB_IN_BOOTIMG := true
+BOARD_KERNEL_BASE                := 0x00000000
+BOARD_KERNEL_PAGESIZE            := 4096
+BOARD_PAGE_SIZE                  := 4096
+BOARD_KERNEL_OFFSET              := 0x80000000
+BOARD_RAMDISK_OFFSET             := 0xa6f00000
+BOARD_KERNEL_TAGS_OFFSET         := 0x87c80000
+BOARD_DTB_OFFSET                 := 0x87c80000
+BOARD_KERNEL_CMDLINE             := bootopt=64S3,32N2,64N2
+BOARD_RAMDISK_USE_LZ4            := true
+BOARD_INCLUDE_DTB_IN_BOOTIMG     := true
+
 KLIMT_STOCK_DTB := $(DEVICE_PATH)/prebuilt/klimt.dtb
 ifeq ($(wildcard $(KLIMT_STOCK_DTB)),)
 $(error Missing stock DTB at $(KLIMT_STOCK_DTB))
 endif
 BOARD_PREBUILT_DTBIMAGE_DIR := $(DEVICE_PATH)/prebuilt
 
-BOARD_MKBOOTIMG_ARGS += --header_version 4
-BOARD_MKBOOTIMG_ARGS += --kernel_offset 0x80000000
-BOARD_MKBOOTIMG_ARGS += --ramdisk_offset 0xa6f00000
-BOARD_MKBOOTIMG_ARGS += --tags_offset 0x87c80000
-BOARD_MKBOOTIMG_ARGS += --dtb_offset 0x87c80000
-BOARD_MKBOOTIMG_ARGS += --board ""
+BOARD_MKBOOTIMG_ARGS += \
+    --header_version $(BOARD_BOOT_HEADER_VERSION) \
+    --kernel_offset $(BOARD_KERNEL_OFFSET) \
+    --ramdisk_offset $(BOARD_RAMDISK_OFFSET) \
+    --tags_offset $(BOARD_KERNEL_TAGS_OFFSET) \
+    --dtb_offset $(BOARD_DTB_OFFSET) \
+    --board ""
 
+# Recovery & Partitions
 # Recovery is a distinct type-2/name=recovery vendor ramdisk table entry.
-BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT := true
+BOARD_MOVE_RECOVERY_RESOURCES_TO_VENDOR_BOOT  := true
 BOARD_INCLUDE_RECOVERY_RAMDISK_IN_VENDOR_BOOT := true
-BOARD_VENDOR_BOOTIMAGE_PARTITION_SIZE := 67108864
-BOARD_RECOVERY_IMAGE_PREPARE = bash $(DEVICE_PATH)/fox_callback.sh $(TARGET_RECOVERY_ROOT_OUT) --first-call
-TARGET_NO_RECOVERY := true
-TARGET_RECOVERY_FSTAB := $(DEVICE_PATH)/recovery.fstab
+BOARD_VENDOR_BOOTIMAGE_PARTITION_SIZE         := 67108864
+BOARD_RECOVERY_IMAGE_PREPARE                  = bash $(DEVICE_PATH)/fox_callback.sh $(TARGET_RECOVERY_ROOT_OUT) --first-call
+TARGET_NO_RECOVERY                            := true
+TARGET_RECOVERY_FSTAB                         := $(DEVICE_PATH)/recovery.fstab
 
 AB_OTA_UPDATER := true
 AB_OTA_PARTITIONS += \
@@ -75,59 +79,57 @@ AB_OTA_PARTITIONS += \
     mi_ext
 
 # No standalone recovery, recovery-as-boot, or unproven super size is defined.
-BOARD_FLASH_BLOCK_SIZE := 262144
-BOARD_HAS_LARGE_FILESYSTEM := true
-BOARD_HAS_NO_SELECT_BUTTON := true
+BOARD_FLASH_BLOCK_SIZE      := 262144
+BOARD_HAS_LARGE_FILESYSTEM  := true
+BOARD_HAS_NO_SELECT_BUTTON  := true
 BOARD_SUPPRESS_SECURE_ERASE := true
 
+# TWRP Display, Input & Hardware
 # ADB, fastbootd, and the read-only FBE path are always part of release builds.
-TW_THEME := portrait_hdpi
-TARGET_SCREEN_WIDTH := 1280
-TARGET_SCREEN_HEIGHT := 2772
-TW_BRIGHTNESS_PATH := "/sys/class/leds/lcd-backlight/brightness"
-TW_MAX_BRIGHTNESS := 16383
-TW_DEFAULT_BRIGHTNESS := 8192
+TW_THEME                       := portrait_hdpi
+TARGET_SCREEN_WIDTH            := 1280
+TARGET_SCREEN_HEIGHT           := 2772
+TW_BRIGHTNESS_PATH             := "/sys/class/leds/lcd-backlight/brightness"
+TW_MAX_BRIGHTNESS              := 16383
+TW_DEFAULT_BRIGHTNESS          := 8192
 TW_USE_LEGACY_BATTERY_SERVICES := true
-TW_DEFAULT_LANGUAGE := en
-TW_HAS_MTP := true
-TW_MTP_DEVICE := /dev/mtp_usb
-TW_NO_USB_STORAGE := true
-TW_INPUT_BLACKLIST := "hbtp_vm"
-TARGET_USES_LOGD := true
-TWRP_INCLUDE_LOGCAT := true
-TW_INCLUDE_RESETPROP := true
-TW_INCLUDE_EROFS := true
+TW_DEFAULT_LANGUAGE            := en
+TW_INPUT_BLACKLIST             := "hbtp_vm"
 # Klimt recovery carries si_haptic module for haptic feedback.
-TW_USE_NEW_MINADBD := true
-# Treat the primary data/media tree as the storage mount itself.  The explicit
+TW_USE_NEW_MINADBD             := true
+# RGB565 is the format proven by the v7-v9 runtime tests. Touch and the stock
+# host bridge remain a separately audited recovery overlay.
+
+# TWRP Storage, USB & Debugging
+TW_HAS_MTP           := true
+TW_MTP_DEVICE        := /dev/mtp_usb
+TW_NO_USB_STORAGE    := true
+TARGET_USES_LOGD     := true
+TWRP_INCLUDE_LOGCAT  := true
+TW_INCLUDE_RESETPROP := true
+TW_INCLUDE_EROFS     := true
+TW_INCLUDE_FASTBOOTD := true
+
+# Treat the primary data/media tree as the storage mount itself. The explicit
 # RECOVERY_SDCARD_ON_DATA flag is required here because /data is also marked as
 # settingsstorage in recovery.fstab, which suppresses TWRP's auto-detection.
-RECOVERY_SDCARD_ON_DATA := true
+RECOVERY_SDCARD_ON_DATA         := true
 TW_INTERNAL_STORAGE_MOUNT_POINT := "/data/media/0"
-TW_INCLUDE_FASTBOOTD := true
-TW_EXCLUDE_APEX := true
-TW_INCLUDE_CRYPTO := true
-TW_INCLUDE_CRYPTO_FBE := true
-TW_INCLUDE_FBE := true
-BOARD_USES_METADATA_PARTITION := true
+
+# Crypto, FBE & Security Patch
+TW_INCLUDE_CRYPTO               := true
+TW_INCLUDE_CRYPTO_FBE           := true
+TW_INCLUDE_FBE                  := true
+BOARD_USES_METADATA_PARTITION   := true
 TW_INCLUDE_FBE_METADATA_DECRYPT := true
-TW_USE_FSCRYPT_POLICY := 2
-PLATFORM_VERSION := 99.87.36
+TW_USE_FSCRYPT_POLICY           := 2
+
+PLATFORM_VERSION             := 99.87.36
 PLATFORM_VERSION_LAST_STABLE := $(PLATFORM_VERSION)
-PLATFORM_SECURITY_PATCH := 2099-12-31
-BOOT_SECURITY_PATCH := $(PLATFORM_SECURITY_PATCH)
-VENDOR_SECURITY_PATCH := $(PLATFORM_SECURITY_PATCH)
-TW_INCLUDE_OMAPI := true
-TW_EXCLUDE_TZDATA := true
-TW_EXCLUDE_NANO := true
-TW_EXCLUDE_LPDUMP := true
-TW_NO_EXFAT := true
-TW_NO_EXFAT_FUSE := true
-TW_NO_NETWORK := true
-TW_NO_LEGACY_PROPS := true
-TW_NO_BIND_SYSTEM := true
-# Keep legacy Advanced actions reversible while hiding them from the klimt UI.
-TW_SHOW_LEGACY_ADVANCED := false
+PLATFORM_SECURITY_PATCH      := 2099-12-31
+BOOT_SECURITY_PATCH          := $(PLATFORM_SECURITY_PATCH)
+VENDOR_SECURITY_PATCH        := $(PLATFORM_SECURITY_PATCH)
+
 # The stock A15 TEE/KeyMint/Gatekeeper executables run directly from vendor.
 # Keep its read-only mount alive after parsing the additional vendor fstab.
 TW_KEEP_VENDOR_MOUNTED := true
@@ -140,8 +142,20 @@ TW_USE_DMCTL := true
 # Keep user-0 credential entry explicit; hardware throttling governs retries.
 TW_SKIP_FBE_DEFAULT_PASSWORD := true
 
+# TWRP Feature Flags & Exclusions
+TW_INCLUDE_OMAPI   := true
+TW_EXCLUDE_APEX    := true
+TW_EXCLUDE_TZDATA  := true
+TW_EXCLUDE_NANO    := true
+TW_EXCLUDE_LPDUMP  := true
+TW_NO_EXFAT        := true
+TW_NO_EXFAT_FUSE   := true
+TW_NO_NETWORK      := true
+TW_NO_LEGACY_PROPS := true
+TW_NO_BIND_SYSTEM  := true
+# Keep legacy Advanced actions reversible while hiding them from the klimt UI.
+TW_SHOW_LEGACY_ADVANCED := false
+
+# OrangeFox Configuration
 -include $(DEVICE_PATH)/fox_klimt.mk
 TW_EXCLUDE_DEFAULT_USB_INIT := true
-
-# RGB565 is the format proven by the v7-v9 runtime tests. Touch and the stock
-# host bridge remain a separately audited recovery overlay.

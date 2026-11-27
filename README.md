@@ -78,4 +78,107 @@ cd sync
 ./orangefox_sync.sh -b 14.1 -p /path/to/ofox-sync/ofox-14.1
 ```
 
-> Updating... I'm too lazy.
+### 2. Clone the device tree
+
+```sh
+cd /path/to/ofox-sync/ofox-14.1
+git clone https://github.com/NKPGAMER/device-xiaomi-klimt-ofox.git -b main device/xiaomi/klimt
+```
+
+### 3. Apply and verify patches
+
+`apply-patches.sh` applies the required `fox_14.1` patch stack (`bootable/recovery`, `build/make`, `hardware/interfaces`, `system/core`, `system/libhidl`, `system/security`, `system/update_engine`, `system/vold`, `vendor/twrp`), and `verify-patches.sh` verifies SHA-256 checksums and 100% git parity.
+
+```sh
+cd /path/to/ofox-sync/ofox-14.1
+./device/xiaomi/klimt/patches/apply-patches.sh
+./device/xiaomi/klimt/patches/verify-patches.sh
+```
+
+> [!NOTE]
+> Both scripts auto-detect the OrangeFox root when run inside `ofox-14.1`. You can also pass the path explicitly (`./apply-patches.sh /path/to/ofox-14.1`) or set `ORANGEFOX_TOP`.
+
+### 4. Provide stock `vendor_boot.img`
+
+Place your stock `vendor_boot.img` at `device/xiaomi/klimt/local-inputs/vendor_boot.img`:
+
+```sh
+mkdir -p device/xiaomi/klimt/local-inputs
+cp /path/to/stock/vendor_boot.img device/xiaomi/klimt/local-inputs/vendor_boot.img
+```
+
+### 5. Build & Repack
+
+> [!TIP]
+> `vendorsetup.sh` enables low-memory defaults (`OF_LOW_MEMORY_BUILD=1`, `OF_BUILD_JOBS=4`, `GOMEMLIMIT=6GiB`, `_JAVA_OPTIONS=-Xmx1g`). To disable them on high-RAM machines, run `export OF_LOW_MEMORY_BUILD=0` before building.
+
+#### Option A: Auto Build (Recommended)
+
+`tools/build.sh` runs `envsetup.sh`, `lunch`, `mka vendorbootimage`, `tools/unpack_stock.py` (when `tools/.work/state.json` is absent), and `tools/repack_twrp.py` automatically:
+
+```sh
+cd /path/to/ofox-sync/ofox-14.1
+./device/xiaomi/klimt/tools/build.sh
+```
+
+Available options for `tools/build.sh`:
+
+| Option | Description |
+| :--- | :--- |
+| `--security-patch YYYY-MM-DD` | Set `ro.build.version.security_patch` in `prop.default` (default: current `YYYY-MM-01`) |
+| `--lunch TARGET` | Lunch target (default: `twrp_klimt-ap2a-eng`, also supports `twrp_klimt-eng`) |
+| `--skip-build` | Skip `mka vendorbootimage` and only run unpack/repack |
+| `--clean-work` | Remove `tools/.work` before unpacking `local-inputs/vendor_boot.img` |
+| `-h`, `--help` | Show usage help |
+
+Examples:
+
+```sh
+# Auto build with explicit security patch date
+./device/xiaomi/klimt/tools/build.sh --security-patch 2026-11-01
+
+# Re-unpack stock vendor_boot.img and repack without rebuilding OrangeFox
+./device/xiaomi/klimt/tools/build.sh --skip-build --clean-work
+```
+
+#### Option B: Manual Build
+
+1. **Set up environment and build `vendorbootimage`:**
+
+   ```sh
+   cd /path/to/ofox-sync/ofox-14.1
+   source build/envsetup.sh
+   lunch twrp_klimt-ap2a-eng
+   mka vendorbootimage
+   ```
+
+2. **Unpack stock `vendor_boot.img`:**
+
+   Only needed on the first run, or after removing `tools/.work` when switching `local-inputs/vendor_boot.img`.
+
+   ```sh
+   # Remove previous work directory if re-unpacking:
+   # rm -rf device/xiaomi/klimt/tools/.work
+   python3 device/xiaomi/klimt/tools/unpack_stock.py
+   ```
+
+3. **Repack the final OrangeFox `vendor_boot.img`:**
+
+   ```sh
+   python3 device/xiaomi/klimt/tools/repack_twrp.py --security-patch "$(date +%Y-%m-01)"
+   ```
+
+### 6. Output & Flashing
+
+The final image and repack reports are generated in `device/xiaomi/klimt/tools/output/<YYYYMMDD-HHMMSS>/`:
+- `klimt-<YYYYMMDD>-vendor_boot.img`
+- `repack-report.json`
+- `size-budget.json`
+
+Flash the generated `vendor_boot` image from bootloader mode:
+
+```sh
+adb reboot bootloader
+fastboot flash vendor_boot device/xiaomi/klimt/tools/output/<YYYYMMDD-HHMMSS>/klimt-<YYYYMMDD>-vendor_boot.img
+fastboot reboot recovery
+```

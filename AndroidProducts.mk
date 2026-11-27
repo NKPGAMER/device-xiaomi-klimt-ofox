@@ -3,4 +3,3 @@ PRODUCT_MAKEFILES := \
 
 COMMON_LUNCH_CHOICES := \
     twrp_klimt-ap2a-eng \
-    twrp_klimt-eng

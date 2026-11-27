@@ -1,5 +1,5 @@
 # ---- Stock firmware inputs ----
-local-inputs/
+local-inputs/*
 tools/.work/
 tools/output/
 

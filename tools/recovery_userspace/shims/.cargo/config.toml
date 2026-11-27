@@ -1,0 +1,11 @@
+[build]
+target = "aarch64-linux-android"
+
+[target.aarch64-linux-android]
+linker = "rust-lld"
+rustflags = [
+    "-C", "link-arg=--shared",
+    "-C", "link-arg=-z", "-C", "link-arg=now",
+    "-C", "link-arg=--allow-shlib-undefined",
+    "-C", "link-arg=-nostdlib",
+]

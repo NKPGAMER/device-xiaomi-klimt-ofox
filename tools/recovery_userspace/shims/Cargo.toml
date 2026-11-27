@@ -1,0 +1,13 @@
+[workspace]
+resolver = "2"
+members = [
+    "common",
+    "sm_stab3",
+    "touch_shim",
+]
+
+[profile.release]
+opt-level = "s"
+lto = true
+panic = "abort"
+strip = "symbols"

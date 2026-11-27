@@ -1,0 +1,11 @@
+[package]
+name = "touch_shim"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "touch_shim"
+crate-type = ["cdylib"]
+
+[dependencies]
+shim_common = { path = "../common" }

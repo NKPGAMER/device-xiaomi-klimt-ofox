@@ -12,6 +12,7 @@ budget.json
 
 # ---- Build outputs ----
 out/
+tools/recovery_userspace/shims/target/
 
 # ---- Patch application leftovers ----
 *.orig

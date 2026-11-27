@@ -611,27 +611,30 @@ def main() -> None:
     for target, source in STOCK_PARTITION_FILES.items():
         copy_path(source, recovery_tree / target)
     
-    # THP userspace stack: cross-compile shims and install touch_init.sh
+    # THP userspace stack: use prebuilt shims if present, otherwise build Rust shims
     thp_dir = recovery_tree / "thp"
     thp_dir.mkdir(exist_ok=True)
     shims_src = ROOT / "recovery_userspace" / "shims"
-    
-    # Find clang compiler from TWRP/OrangeFox prebuilts
-    clang_candidates = list(twrp_source.glob("prebuilts/clang/host/linux-x86/clang-r*/bin/clang"))
-    if not clang_candidates:
-        raise SystemExit(f"Cannot find clang in {twrp_source}/prebuilts")
-    clang = sorted(clang_candidates)[-1]  # Use latest version
-    print(f"Using clang: {clang}")
-    
-    # Cross-compile shims
-    for shim in ("sm_stab3.c", "touch_shim.c"):
-        shim_src = shims_src / shim
-        shim_so = thp_dir / shim.replace(".c", ".so")
-        print(f"Cross-compiling {shim}...")
-        subprocess.run([
-            str(clang), "--target=aarch64-linux-gnu", "-shared", "-fPIC", "-nostdlib", "-O0", "-std=c11",
-            "-o", str(shim_so), str(shim_src)
-        ], check=True)
+    prebuilt_modules = DEVICE_TREE / "prebuilt" / "modules"
+    shim_names = ("sm_stab3.so", "touch_shim.so")
+
+    if all((prebuilt_modules / name).is_file() for name in shim_names):
+        print(f"Using prebuilt THP shims from {prebuilt_modules}")
+        for name in shim_names:
+            copy_path(prebuilt_modules / name, thp_dir / name)
+    else:
+        print("Prebuilt THP shims missing; building Rust shims...")
+        subprocess.run(
+            ["cargo", "build", "--release", "--target", "aarch64-linux-android"],
+            cwd=shims_src,
+            check=True,
+        )
+        prebuilt_modules.mkdir(parents=True, exist_ok=True)
+        rust_release = shims_src / "target" / "aarch64-linux-android" / "release"
+        for name in shim_names:
+            built_so = rust_release / f"lib{name}"
+            copy_path(built_so, prebuilt_modules / name)
+            copy_path(built_so, thp_dir / name)
     
     # Copy touch_init.sh
     touch_init_src = ROOT / "recovery_userspace" / "touch_init.sh"

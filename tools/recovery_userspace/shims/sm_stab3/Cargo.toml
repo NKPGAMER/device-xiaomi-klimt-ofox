@@ -1,0 +1,11 @@
+[package]
+name = "sm_stab3"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+name = "sm_stab3"
+crate-type = ["cdylib"]
+
+[dependencies]
+shim_common = { path = "../common" }
